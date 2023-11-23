@@ -27,6 +27,7 @@ LOCAL_APPS = [
     "problem",
     "judgeserver",
     "authenticate",
+    "generate_data",
 ]
 
 INSTALLED_APPS = [
@@ -42,7 +43,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
 ] + LOCAL_APPS
-
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
