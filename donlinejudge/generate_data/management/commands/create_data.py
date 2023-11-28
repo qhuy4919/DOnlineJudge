@@ -6,6 +6,6 @@ class Command(BaseCommand):
     help = "Create sample data"
 
     def handle(self, *arg, **kwargs):
-        # generate_user(10)
+        generate_user(100)
         # generate_tag()
         print("complete!!!")
