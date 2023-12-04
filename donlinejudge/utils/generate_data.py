@@ -1,6 +1,7 @@
 from faker import Faker
 from accounts.models import User
 from problem.models import ProblemTag, Problem
+from submission.models import Submission
 import random
 import json
 
@@ -10,6 +11,14 @@ fake = Faker()
 def pick_random_admin_user():
     admin_id = User.objects.get(is_superuser=True)
     return admin_id
+
+
+def pick_random_user():
+    return User.objects.all().order_by("?")[:1]
+
+
+def pick_random_problem():
+    return Problem.objects.all().order_by("?")[:1]
 
 
 def generate_user(num: int):
@@ -43,6 +52,39 @@ def generate_problem(num: int):
             test_zip=DEFAULT_TEST_ZIP,
         )
         problem.save()
+
+
+def generate_submission(num: int):
+    DEFAULT_CONTENT = "N, P, Q = map(int, input().split())\nD = list(map(int, input().split()))\n\nprint(min(P, Q+min(D)))"
+    LANG = ["PyPy3", "Python3", "Python2", "Java", "C", "Cpp"]
+    VERDICTS = [
+        "Accepted",
+        "Wrong Answer",
+        "Time Limit Exceeded",
+        "Memory Limit Exceeded",
+        "Runtime Error",
+        "Compile Error",
+        "System Error",
+        "Rejected",
+    ]
+
+    for _ in range(num):
+        randomUser = pick_random_user()
+        print("random user", randomUser)
+        randomProblem = pick_random_problem()
+        print("random problem", randomProblem)
+        submission = Submission.objects.create(
+            author_id=randomUser.values("id"),
+            content=DEFAULT_CONTENT,
+            language=random.choice(LANG),
+            memory=random.randint(256, 1024),
+            problem_id=randomProblem.values("id"),
+            submit_time=fake.date_time(),
+            time=random.randint(20, 20000),
+            verdict=random.choice(VERDICTS),
+        )
+
+        submission.save()
 
 
 def generate_tag():

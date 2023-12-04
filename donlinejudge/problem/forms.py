@@ -24,6 +24,8 @@ class ProblemForm(ModelForm):
     def clean(self):
         cdata = super().clean()
 
+        print(cdata)
+
         try:
             # Clean display_id
             try:

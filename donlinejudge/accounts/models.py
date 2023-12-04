@@ -1,12 +1,20 @@
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import (
+    AbstractBaseUser,
+    BaseUserManager,
+    PermissionsMixin,
+)
 from django.conf import settings
 from django.db import models
 from PIL import Image
+from django.db.models.aggregates import Count
+from random import randint
+
 import os
 
 from django.apps import apps
 
-from utils.file_upload import FileUploadUtils 
+from utils.file_upload import FileUploadUtils
+
 
 class AdminType(object):
     REGULAR_USER = "Regular User"
@@ -25,11 +33,16 @@ class ProblemPermission(object):
 
 
 class UserManager(BaseUserManager):
+    def random(self):
+        count = self.aggregate(count=Count("id"))["count"]
+        random_index = randint(0, count - 1)
+        return self.all()[random_index]
+
     def create_user(self, username, email, password=None):
         if username is None:
-            raise TypeError('User should have a Username!')
+            raise TypeError("User should have a Username!")
         if email is None:
-            raise TypeError('User should have a Email!')
+            raise TypeError("User should have a Email!")
 
         user = self.model(username=username, email=self.normalize_email(email))
         user.set_password(password)
@@ -38,9 +51,9 @@ class UserManager(BaseUserManager):
 
     def create_superuser(self, username, email=None, password=None):
         if username is None:
-            raise TypeError('User should have a Username!')
+            raise TypeError("User should have a Username!")
         if password is None:
-            raise TypeError('Password should not be None!')
+            raise TypeError("Password should not be None!")
 
         user = self.model(username=username, email=self.normalize_email(email))
         user.set_password(password)
@@ -54,18 +67,20 @@ class UserManager(BaseUserManager):
 class User(AbstractBaseUser, PermissionsMixin):
     username = models.TextField(unique=True, db_index=True)
     email = models.EmailField(null=True)
-    first_name = models.CharField(max_length=100,null=True)
+    first_name = models.CharField(max_length=100, null=True)
     last_name = models.CharField(max_length=100, null=True)
 
-    solved_problem = models.ManyToManyField('problem.Problem', blank=True) 
+    solved_problem = models.ManyToManyField("problem.Problem", blank=True)
 
     create_time = models.DateTimeField(auto_now_add=True, null=True)
     update_time = models.DateTimeField(auto_now=True, null=True)
 
     # One of UserType
     profile_pic = models.ImageField(
-        default='avatar/__default__.png', null=True, blank=True,
-        upload_to=FileUploadUtils().upload_to_path_and_rename('avatar/', False)
+        default="avatar/__default__.png",
+        null=True,
+        blank=True,
+        upload_to=FileUploadUtils().upload_to_path_and_rename("avatar/", False),
     )
 
     admin_type = models.TextField(default=AdminType.REGULAR_USER)
@@ -77,10 +92,23 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = []
 
-    DISPLAY_FIELD = ["username", "email", "first_name", "last_name",
-                     "create_time", "admin_type", "problem_permission", "is_active"]
+    DISPLAY_FIELD = [
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "create_time",
+        "admin_type",
+        "problem_permission",
+        "is_active",
+    ]
 
     objects = UserManager()
+
+    def random(self):
+        count = self.aggregate(count=Count("id"))["count"]
+        random_index = randint(0, count - 1)
+        return self.all()[random_index]
 
     def authored_problem(self):
         return self.problem_set.all()
@@ -95,13 +123,13 @@ class User(AbstractBaseUser, PermissionsMixin):
             img.save(self.profile_pic.path)
 
     def is_using_default_profile_pic(self):
-        return self.profile_pic == User._meta.get_field('profile_pic').get_default() 
+        return self.profile_pic == User._meta.get_field("profile_pic").get_default()
 
     def reset_profile_pic(self):
         if not self.is_using_default_profile_pic():
             if os.path.exists(self.profile_pic.path):
                 os.remove(self.profile_pic.path)
-            self.profile_pic = User._meta.get_field('profile_pic').get_default()
+            self.profile_pic = User._meta.get_field("profile_pic").get_default()
             self.save()
 
     def is_admin(self):

@@ -4,7 +4,11 @@ from utils.validators import lowerAlphanumeric
 from utils.file_upload import FileUploadUtils
 from donlinejudge.settings import MEDIA_ROOT
 
+from django.db.models.aggregates import Count
+from random import randint
+
 import os, sys
+
 
 class ProblemDifficulty(object):
     HARD = "Hard"
@@ -13,6 +17,7 @@ class ProblemDifficulty(object):
     DIFF = [EASY, MEDIUM, HARD]
     CHOICES = [(EASY, EASY), (MEDIUM, MEDIUM), (HARD, HARD)]
 
+
 class ProblemTag(models.Model):
     tag_name = models.TextField()
 
@@ -20,52 +25,61 @@ class ProblemTag(models.Model):
         db_table = "problemtag"
 
     def __str__(self):
-        if self.tag_name: return self.tag_name
+        if self.tag_name:
+            return self.tag_name
         return None
 
 
 class Problem(models.Model):
-    display_id = models.CharField(db_index=True, unique=True, max_length=64, validators=[lowerAlphanumeric])
+    display_id = models.CharField(
+        db_index=True, unique=True, max_length=64, validators=[lowerAlphanumeric]
+    )
     created = models.DateTimeField(auto_now_add=True)
     is_visible = models.BooleanField(default=True, null=True)
 
     author = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
 
-    #== Content to be displayed
+    # == Content to be displayed
     title = models.TextField()
-    statement = models.TextField() ## TODO RichTextField support
+    statement = models.TextField()  ## TODO RichTextField support
 
-    #== Tag, Difficulty, Source
-    difficulty = models.CharField(choices=ProblemDifficulty.CHOICES, max_length=50, default=ProblemDifficulty.EASY)
+    # == Tag, Difficulty, Source
+    difficulty = models.CharField(
+        choices=ProblemDifficulty.CHOICES, max_length=50, default=ProblemDifficulty.EASY
+    )
     tags = models.ManyToManyField(ProblemTag)
     source = models.TextField(null=True)
 
     sample_test = models.JSONField(default=dict, null=True, blank=True)
     ### [{input: "hello", output: "world"}, {input: "i am", output: "django"}]
 
-    #== The Problem tests location
+    # == The Problem tests location
     test_zip = models.FileField(
-        default=None, null=True, blank=True,
-        upload_to=FileUploadUtils().upload_to_path_and_rename('tests/', False)
+        default=None,
+        null=True,
+        blank=True,
+        upload_to=FileUploadUtils().upload_to_path_and_rename("tests/", False),
     )
 
-    #== Problem constraints
-    time_limit = models.IntegerField(default=1000)      ## millisecond
-    memory_limit = models.IntegerField(default=256)    ## MB
+    # == Problem constraints
+    time_limit = models.IntegerField(default=1000)  ## millisecond
+    memory_limit = models.IntegerField(default=256)  ## MB
 
-    #== Statistics
+    # == Statistics
     total_submission = models.BigIntegerField(default=0)
     correct_submission = models.BigIntegerField(default=0)
     statistic_info = models.JSONField(default=dict)
     ### {_.ACCEPTED: 5, _.WRONG_ANSWER: 4, ...}
 
-    #-- Method fields
+    DISPLAY_FIELD = ["id", "display_id", "author", "title"]
+
+    # -- Method fields
     def set_tags_to(self, newTags):
         # Remove old tag that isn't in new tags
         for oldTag in self.tags.all():
             if not oldTag.tag_name in newTags:
                 self.tags.remove(oldTag)
-                if len(ProblemTag.objects.get(id=oldTag.id).problem_set.all())==0:
+                if len(ProblemTag.objects.get(id=oldTag.id).problem_set.all()) == 0:
                     oldTag.delete()
 
         # Add new tags
@@ -79,6 +93,11 @@ class Problem(models.Model):
             tag = ProblemTag.objects.get(tag_name=item)
             self.tags.add(tag)
 
+    def random(self):
+        count = self.aggregate(count=Count("id"))["count"]
+        random_index = randint(0, count - 1)
+        return self.all()[random_index]
+
     def remove_test_zip(self):
         if self.test_zip:
             try:
@@ -90,7 +109,8 @@ class Problem(models.Model):
             self.save()
 
     def std_test_zip_name(self):
-        return 'tests/'+str(self.id)+'.zip'
+        return "tests/" + str(self.id) + ".zip"
+
     def std_test_zip_path(self):
         return os.path.join(
             os.path.abspath(MEDIA_ROOT),
@@ -117,24 +137,27 @@ class Problem(models.Model):
 
     def update_stat_remove_submission(self, sub):
         try:
-            if sub.problem.id != self.id: return
-            self.statistic_info[sub.verdict] = max(self.statistic_info.get(sub.verdict, 0) - 1, 0)
-            self.total_submission = max(self.total_submission-1, 0)
+            if sub.problem.id != self.id:
+                return
+            self.statistic_info[sub.verdict] = max(
+                self.statistic_info.get(sub.verdict, 0) - 1, 0
+            )
+            self.total_submission = max(self.total_submission - 1, 0)
 
-            #if sub.verdict == SubmissionVerdict.AC: # circular import problem
-            if sub.verdict == "Accepted": # TODO Fix import issue and Use the above line
-                 self.correct_submission = max(
-                    self.correct_submission-1, 0
-                 )
+            # if sub.verdict == SubmissionVerdict.AC: # circular import problem
+            if (
+                sub.verdict == "Accepted"
+            ):  # TODO Fix import issue and Use the above line
+                self.correct_submission = max(self.correct_submission - 1, 0)
         except:
             # TODO handle exception for Problem.submission_got_rejected
             pass
-    
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        #self.rename_testzip_to_pk() # dont need
+        # self.rename_testzip_to_pk() # dont need
 
-    #--- Author
+    # --- Author
     def author_id(self):
         if self.author:
             return self.author.id
@@ -148,6 +171,9 @@ class Problem(models.Model):
     class Meta:
         db_table = "problem"
         ordering = ["-id"]
-    
+
     def __str__(self):
-        return f"Disp_id[{self.display_id}] Title[{self.title}]"
+        d = {}
+        for field in self.DISPLAY_FIELD:
+            d[field] = getattr(self, field)
+        return str(d)
