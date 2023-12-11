@@ -14,5 +14,5 @@ class Command(BaseCommand):
         # generate_user(100)
         # generate_tag()
         # generate_problem(10)
-        generate_submission(2000)
+        generate_submission(200)
         print("complete!!!")
